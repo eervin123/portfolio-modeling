@@ -8,7 +8,23 @@ import time
 from plotly.subplots import make_subplots
 
 # Set page config
-st.set_page_config(page_title="Impact of adding BFC Allocation to 60/40", layout="wide")
+st.set_page_config(
+    page_title="Blockforce Capital Portfolio Analysis",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Show Blockforce logo from local assets
+st.image("assets/image.png", width=260)
+
+# Custom header and subtitle using markdown
+st.markdown(
+    "<h1 style='color:#f7931a; font-size:2.5rem; font-weight:bold;'>Portfolio Analysis Dashboard</h1>",
+    unsafe_allow_html=True,
+)
+st.subheader(
+    "Analyze the impact of adding Blockforce Capital allocation to your portfolio"
+)
 
 
 # Cache the data download
@@ -56,7 +72,10 @@ all_data["BFC Net"] = bfc_net
 all_data = all_data.ffill().dropna()
 
 # Title and description
-st.title("Impact of adding BFC Allocation to 60/40")
+st.markdown(
+    "<h2 style='color:#f7931a;'>Impact of adding BFC Allocation to 60/40</h2>",
+    unsafe_allow_html=True,
+)
 st.write(
     "Adjust the Blockforce Capital allocation using the slider below. The allocation will be taken proportionally from SPY (60%) and AGG (40%)."
 )
@@ -154,6 +173,11 @@ fig.update_layout(
     showlegend=True,
     height=600,
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    plot_bgcolor="#1a1a1a",
+    paper_bgcolor="#1a1a1a",
+    font=dict(color="white"),
+    xaxis=dict(gridcolor="#333333"),
+    yaxis=dict(gridcolor="#333333"),
 )
 
 
@@ -192,7 +216,14 @@ with col_pie:
             hole=0.4,
         )
     )
-    pie_fig.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=350)
+    pie_fig.update_layout(
+        showlegend=False,
+        margin=dict(t=0, b=0, l=0, r=0),
+        height=350,
+        plot_bgcolor="#1a1a1a",
+        paper_bgcolor="#1a1a1a",
+        font=dict(color="white"),
+    )
     st.plotly_chart(pie_fig, use_container_width=True)
 
 # --- Stats Table and Bar Subplots Side-by-Side ---
@@ -213,6 +244,7 @@ with col_table:
             "60/40 Portfolio": benchmark_stats_clean,
         }
     )
+    # Use Streamlit's default dataframe styling for best compatibility
     st.dataframe(stats_df, hide_index=True, use_container_width=False, height=800)
 
 with col_bars:
@@ -294,5 +326,15 @@ with col_bars:
         title_text="Key Metrics Comparison",
         margin=dict(l=0, r=0, t=40, b=0),
         showlegend=False,
+        plot_bgcolor="#1a1a1a",
+        paper_bgcolor="#1a1a1a",
+        font=dict(color="white"),
     )
     st.plotly_chart(sub_fig, use_container_width=True)
+
+# Update bar colors to use Blockforce orange
+for trace in sub_fig.data:
+    if trace.marker.color == "purple":
+        trace.marker.color = "#f7931a"  # Blockforce orange
+    elif trace.marker.color == "blue":
+        trace.marker.color = "#ffffff"  # White for comparison
