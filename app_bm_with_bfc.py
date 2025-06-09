@@ -8,7 +8,7 @@ import time
 from plotly.subplots import make_subplots
 
 # Set page config
-st.set_page_config(page_title="Portfolio Backtest with BFC Allocation", layout="wide")
+st.set_page_config(page_title="Impact of adding BFC Allocation to 60/40", layout="wide")
 
 
 # Cache the data download
@@ -56,7 +56,7 @@ all_data["BFC Net"] = bfc_net
 all_data = all_data.ffill().dropna()
 
 # Title and description
-st.title("Portfolio Backtest with Blockforce Capital Allocation")
+st.title("Impact of adding BFC Allocation to 60/40")
 st.write(
     "Adjust the Blockforce Capital allocation using the slider below. The allocation will be taken proportionally from SPY (60%) and AGG (40%)."
 )
