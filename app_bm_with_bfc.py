@@ -153,7 +153,7 @@ fig.add_trace(
         y=benchmark_agg[0].prices,
         mode="lines",
         name="100% AGG",
-        line=dict(width=2, color="red"),
+        line=dict(width=2, color="#4a90e2"),
     )
 )
 
@@ -214,7 +214,7 @@ with col_pie:
                 custom_weights["AGG"],
                 custom_weights["BFC Net"],
             ],
-            marker=dict(colors=["green", "red", "#f7931a"]),
+            marker=dict(colors=["green", "#4a90e2", "#f7931a"]),
             textinfo="label+percent",
             hole=0.4,
         )
@@ -362,7 +362,7 @@ with col_bars:
                 x=[agg_val],
                 y=["AGG"],
                 orientation="h",
-                marker_color="red",
+                marker_color="#4a90e2",
                 showlegend=False,
                 hovertemplate=(
                     "%{x:.2%}"
