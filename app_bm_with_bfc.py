@@ -237,14 +237,15 @@ with col_table:
     benchmark_stats_clean = [
         format_stat(x) for x in benchmark_60_40.stats.iloc[:, 0].values
     ]
+    spy_stats_clean = [format_stat(x) for x in benchmark_spy.stats.iloc[:, 0].values]
     stats_df = pd.DataFrame(
         {
             "Metric": custom_portfolio.stats.index,
             f"Custom Portfolio ({bfc_allocation}% BFC Net)": custom_stats_clean,
             "60/40 Portfolio": benchmark_stats_clean,
+            "100% SPY": spy_stats_clean,
         }
     )
-    # Use Streamlit's default dataframe styling for best compatibility
     st.dataframe(stats_df, hide_index=True, use_container_width=False, height=800)
 
 with col_bars:
@@ -277,6 +278,10 @@ with col_bars:
             bm_val = benchmark_60_40.stats.iloc[:, 0].loc[key]
         except Exception:
             bm_val = None
+        try:
+            spy_val = benchmark_spy.stats.iloc[:, 0].loc[key]
+        except Exception:
+            spy_val = None
         # For drawdown and worsts, use abs value for bar length
         if "drawdown" in key or "worst" in key:
             try:
@@ -287,12 +292,16 @@ with col_bars:
                 bm_val = abs(float(bm_val))
             except Exception:
                 pass
+            try:
+                spy_val = abs(float(spy_val))
+            except Exception:
+                pass
         sub_fig.add_trace(
             go.Bar(
                 x=[custom_val],
                 y=["Custom"],
                 orientation="h",
-                marker_color="purple",
+                marker_color="#f7931a",
                 showlegend=False,
                 hovertemplate=(
                     "%{x:.2%}"
@@ -319,6 +328,22 @@ with col_bars:
             row=row,
             col=col,
         )
+        sub_fig.add_trace(
+            go.Bar(
+                x=[spy_val],
+                y=["SPY"],
+                orientation="h",
+                marker_color="green",
+                showlegend=False,
+                hovertemplate=(
+                    "%{x:.2%}"
+                    if isinstance(spy_val, float) and -1 < spy_val < 1
+                    else "%{x}"
+                ),
+            ),
+            row=row,
+            col=col,
+        )
         sub_fig.update_xaxes(showticklabels=False, row=row, col=col)
         sub_fig.update_yaxes(showticklabels=True, row=row, col=col)
     sub_fig.update_layout(
@@ -338,3 +363,9 @@ for trace in sub_fig.data:
         trace.marker.color = "#f7931a"  # Blockforce orange
     elif trace.marker.color == "blue":
         trace.marker.color = "#ffffff"  # White for comparison
+
+# Add a disclosure footnote at the end
+st.caption(
+    "Note: AGG returns shown are price returns only (do not include reinvested interest or distributions). "
+    "This is a limitation of freely available data sources like yfinance."
+)
