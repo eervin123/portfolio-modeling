@@ -425,9 +425,9 @@ def display_monthly_returns():
     }
 
     # Debug: Print date ranges for each series
-    st.write("Debug - Date ranges:")
-    for name, prices in series.items():
-        st.write(f"{name}: {prices.index.min()} to {prices.index.max()}")
+    # st.write("Debug - Date ranges:")
+    # for name, prices in series.items():
+    #     st.write(f"{name}: {prices.index.min()} to {prices.index.max()}")
 
     # Compute monthly and annual returns
     monthly_returns = {k: get_monthly_returns(v) for k, v in series.items()}
@@ -437,7 +437,7 @@ def display_monthly_returns():
     rows = []
     # Ensure we include all years from 2019 to 2025
     years = list(range(2019, 2026))
-    st.write(f"Debug - Years to include: {years}")
+
 
     for year in years:
         rows.append(
@@ -498,7 +498,7 @@ def display_monthly_returns():
     df = pd.DataFrame(rows, columns=columns)
 
     st.markdown("## Monthly and Annual Returns by Portfolio")
-    st.dataframe(df, hide_index=True, use_container_width=True)
+    st.table(df)
 
     # Add footnote for partial years
     st.markdown(
