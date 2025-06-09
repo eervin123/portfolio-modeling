@@ -19,7 +19,7 @@ def download_data():
 
     for attempt in range(max_retries):
         try:
-            data = yf.download(tickers, start="2015-01-01", end="2025-01-01")["Close"]
+            data = yf.download(tickers, start="2015-01-01", end="2026-01-01")["Close"]
             if not data.empty:
                 return data.ffill().dropna()
         except Exception as e:

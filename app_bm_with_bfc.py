@@ -35,7 +35,7 @@ def download_data():
     retry_delay = 5
     for attempt in range(max_retries):
         try:
-            data = yf.download(tickers, start="2015-01-01", end="2025-01-01")["Close"]
+            data = yf.download(tickers, start="2015-01-01", end="2026-01-01")["Close"]
             if not data.empty:
                 return data.ffill().dropna()
         except Exception as e:
@@ -119,6 +119,9 @@ benchmark_60_40 = run_backtest(all_data, {"SPY": 0.60, "AGG": 0.40})
 benchmark_spy = run_backtest(all_data, {"SPY": 1.0})
 benchmark_agg = run_backtest(all_data, {"AGG": 1.0})
 custom_portfolio = run_backtest(all_data, custom_weights)
+
+# Add Blockforce-only backtest
+benchmark_bfc = run_backtest(all_data, {"BFC Net": 1.0})
 
 # Create the plot
 fig = go.Figure()
@@ -238,12 +241,14 @@ with col_table:
         format_stat(x) for x in benchmark_60_40.stats.iloc[:, 0].values
     ]
     spy_stats_clean = [format_stat(x) for x in benchmark_spy.stats.iloc[:, 0].values]
+    bfc_stats_clean = [format_stat(x) for x in benchmark_bfc.stats.iloc[:, 0].values]
     stats_df = pd.DataFrame(
         {
             "Metric": custom_portfolio.stats.index,
             f"Custom Portfolio ({bfc_allocation}% BFC Net)": custom_stats_clean,
             "60/40 Portfolio": benchmark_stats_clean,
             "100% SPY": spy_stats_clean,
+            "100% BFC Net": bfc_stats_clean,
         }
     )
     st.dataframe(stats_df, hide_index=True, use_container_width=False, height=800)
@@ -282,6 +287,10 @@ with col_bars:
             spy_val = benchmark_spy.stats.iloc[:, 0].loc[key]
         except Exception:
             spy_val = None
+        try:
+            agg_val = benchmark_agg.stats.iloc[:, 0].loc[key]
+        except Exception:
+            agg_val = None
         # For drawdown and worsts, use abs value for bar length
         if "drawdown" in key or "worst" in key:
             try:
@@ -294,6 +303,10 @@ with col_bars:
                 pass
             try:
                 spy_val = abs(float(spy_val))
+            except Exception:
+                pass
+            try:
+                agg_val = abs(float(agg_val))
             except Exception:
                 pass
         sub_fig.add_trace(
@@ -344,6 +357,22 @@ with col_bars:
             row=row,
             col=col,
         )
+        sub_fig.add_trace(
+            go.Bar(
+                x=[agg_val],
+                y=["AGG"],
+                orientation="h",
+                marker_color="red",
+                showlegend=False,
+                hovertemplate=(
+                    "%{x:.2%}"
+                    if isinstance(agg_val, float) and -1 < agg_val < 1
+                    else "%{x}"
+                ),
+            ),
+            row=row,
+            col=col,
+        )
         sub_fig.update_xaxes(showticklabels=False, row=row, col=col)
         sub_fig.update_yaxes(showticklabels=True, row=row, col=col)
     sub_fig.update_layout(
@@ -369,3 +398,112 @@ st.caption(
     "Note: AGG returns shown are price returns only (do not include reinvested interest or distributions). "
     "This is a limitation of freely available data sources like yfinance."
 )
+
+
+# --- Monthly Returns Table Section ---
+def display_monthly_returns():
+    # Helper to get monthly returns from price series
+    def get_monthly_returns(prices):
+        monthly = prices.resample("ME").last().pct_change()
+        monthly.index = monthly.index.to_period("M")
+        return monthly
+
+    # Helper to get annual returns from price series
+    def get_annual_returns(prices):
+        # For partial years, calculate based on available months
+        annual = prices.resample("YE").last().pct_change()
+        annual.index = annual.index.to_period("Y")
+        return annual
+
+    # Get price series for each
+    series = {
+        f"Custom Portfolio ({bfc_allocation}% BFC Net)": custom_portfolio[0].prices,
+        "60/40 Portfolio": benchmark_60_40[0].prices,
+        "100% SPY": benchmark_spy[0].prices,
+        "100% AGG": benchmark_agg[0].prices,
+        "100% BFC Net": benchmark_bfc[0].prices,
+    }
+
+    # Debug: Print date ranges for each series
+    st.write("Debug - Date ranges:")
+    for name, prices in series.items():
+        st.write(f"{name}: {prices.index.min()} to {prices.index.max()}")
+
+    # Compute monthly and annual returns
+    monthly_returns = {k: get_monthly_returns(v) for k, v in series.items()}
+    annual_returns = {k: get_annual_returns(v) for k, v in series.items()}
+
+    # Build table
+    rows = []
+    # Ensure we include all years from 2019 to 2025
+    years = list(range(2019, 2026))
+    st.write(f"Debug - Years to include: {years}")
+
+    for year in years:
+        rows.append(
+            [str(year), "", "", "", "", "", "", "", "", "", "", "", "", ""]
+        )  # Blank row for year
+        for name in series.keys():
+            row = ["", name]  # Year col blank for asset rows
+
+            # Monthly returns for this year
+            monthly_vals = []
+            for m in range(1, 13):
+                period = pd.Period(f"{year}-{m:02d}")
+                val = (
+                    monthly_returns[name].loc[period]
+                    if period in monthly_returns[name].index
+                    else float("nan")
+                )
+                monthly_vals.append(val)
+                row.append(f"{val*100:.1f}%" if pd.notnull(val) else "")
+
+            # Calculate annual return for partial years
+            if year in [2019, 2025]:
+                # Filter out NaN values and calculate geometric return
+                valid_returns = [r for r in monthly_vals if pd.notnull(r)]
+                if valid_returns:
+                    # Calculate geometric return for available months
+                    ann_return = (1 + pd.Series(valid_returns)).prod() - 1
+                    row.append(f"{ann_return*100:.1f}%*")
+                else:
+                    row.append("")
+            else:
+                # For complete years, use the standard annual return
+                period = pd.Period(f"{year}")
+                ann = (
+                    annual_returns[name].loc[period]
+                    if period in annual_returns[name].index
+                    else float("nan")
+                )
+                row.append(f"{ann*100:.1f}%" if pd.notnull(ann) else "")
+
+            rows.append(row)
+
+    columns = ["Year", "Asset"] + [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+        "Annual",
+    ]
+    df = pd.DataFrame(rows, columns=columns)
+
+    st.markdown("## Monthly and Annual Returns by Portfolio")
+    st.dataframe(df, hide_index=True, use_container_width=True)
+
+    # Add footnote for partial years
+    st.markdown(
+        "* Partial year (2019 or 2025) - returns calculated based on available months only"
+    )
+
+
+display_monthly_returns()
