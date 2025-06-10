@@ -285,6 +285,12 @@ col_table, col_bars = st.columns([1, 2])
 
 with col_table:
     st.subheader("Portfolio Statistics")
+
+    # Add desktop viewing message
+    st.info(
+        "💻 This table is best viewed on a desktop screen. On smaller screens, use the horizontal scroll bar to view all data."
+    )
+
     # Get all available metrics from the stats DataFrame
     stats_source = custom_portfolio.stats
     all_metrics = list(stats_source.index)
@@ -454,7 +460,46 @@ with col_table:
 
     # Build grid options for stats table
     gb_stats = GridOptionsBuilder.from_dataframe(stats_df)
-    # Configure columns
+
+    # Configure default column settings
+    gb_stats.configure_default_column(
+        resizable=True,
+        filterable=False,
+        sortable=False,
+        wrapText=True,
+        autoHeight=True,
+        minWidth=60,  # Set minimum width for all columns
+        maxWidth=80,  # Set maximum width for all columns
+    )
+
+    # Configure grid options
+    gb_stats.configure_grid_options(
+        domLayout="normal",
+        rowHeight=24,
+        suppressHorizontalScroll=False,  # Enable horizontal scrolling
+        suppressColumnVirtualisation=True,  # Ensure all columns are rendered
+        headerHeight=36,
+        suppressRowClickSelection=True,
+        suppressCellSelection=True,
+        gridStyle={
+            "backgroundColor": blockforce_colors["background_card"],
+            "color": blockforce_colors["text_primary"],
+        },
+    )
+
+    # Configure Metric column with wider width
+    gb_stats.configure_column(
+        "Metric",
+        minWidth=150,
+        maxWidth=250,
+        cellStyle={
+            "textAlign": "left",
+            "fontWeight": "bold",
+            "color": blockforce_colors["text_primary"],
+        },
+    )
+
+    # Configure value columns
     for col in stats_df.columns:
         if col == f"Custom Portfolio ({bfc_allocation}% BFC Net)":
             gb_stats.configure_column(
@@ -475,18 +520,10 @@ with col_table:
                     "color": blockforce_colors["text_primary"],
                 },
             )
-    # Configure Metric column
-    gb_stats.configure_column(
-        "Metric",
-        cellStyle={
-            "textAlign": "left",
-            "fontWeight": "bold",
-            "color": blockforce_colors["text_primary"],
-        },
-        minWidth=100,
-    )
+
     # Hide the _is_section column
     gb_stats.configure_column("_is_section", hide=True)
+
     # Enhanced section header styling
     stats_row_style = JsCode(
         f"""
@@ -509,19 +546,10 @@ with col_table:
     }}
     """
     )
-    gb_stats.configure_grid_options(
-        getRowStyle=stats_row_style,
-        headerHeight=36,
-        rowHeight=24,
-        suppressRowClickSelection=True,
-        suppressCellSelection=True,
-        domLayout="normal",
-        gridStyle={
-            "backgroundColor": blockforce_colors["background_card"],
-            "color": blockforce_colors["text_primary"],
-        },
-    )
-    # Pass the full DataFrame (with _is_section) to AgGr
+
+    # Add row styling to grid options
+    gb_stats.configure_grid_options(getRowStyle=stats_row_style)
+
     AgGrid(
         stats_df,
         gridOptions=gb_stats.build(),
@@ -766,14 +794,36 @@ def display_monthly_returns():
 
     st.markdown("## Monthly and Annual Returns by Portfolio")
 
+    # Add desktop viewing message
+    st.info(
+        "💻 This table is best viewed on a desktop screen. On smaller screens, use the horizontal scroll bar to view all data."
+    )
+
     # Build grid options
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_default_column(
-        resizable=True, filterable=False, sortable=False, wrapText=True, autoHeight=True
+        resizable=True,
+        filterable=False,
+        sortable=False,
+        wrapText=True,
+        autoHeight=True,
+        minWidth=80,  # Set minimum width for all columns
     )
-    gb.configure_grid_options(domLayout="normal", rowHeight=24)
+    gb.configure_grid_options(
+        domLayout="normal",
+        rowHeight=24,
+        suppressHorizontalScroll=False,  # Enable horizontal scrolling
+        suppressColumnVirtualisation=True,  # Ensure all columns are rendered
+    )
+
+    # Configure specific columns with appropriate widths
     gb.configure_column("Asset", wrapText=False, minWidth=200, maxWidth=300)
     gb.configure_column("Year", wrapText=False, minWidth=80, maxWidth=100)
+    gb.configure_column("Annual", minWidth=100, maxWidth=120)
+
+    # Configure month columns to be more compact
+    for month in months:
+        gb.configure_column(month, minWidth=80, maxWidth=100)
 
     # Restore the original row_style_js for the monthly returns table
     row_style_js = JsCode(
