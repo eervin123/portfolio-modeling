@@ -1,6 +1,6 @@
 # Impact of Adding BFC Allocation to 60/40
 
-This Streamlit app allows you to interactively backtest a portfolio with dynamic allocation to the Blockforce Capital MultiStrat Fund (BFC Net), alongside traditional assets (SPY, AGG). You can compare your custom blend to classic benchmarks like 60/40, 100% SPY, and 100% AGG.
+[This Streamlit app](https://blockforce.streamlit.app/) allows you to interactively backtest a portfolio with dynamic allocation to the Blockforce Capital MultiStrat Fund (BFC Net), alongside traditional assets, In this case we are using the ETFs, SPY and AGG, as proxies for the stock and bond markets. You can compare your custom blend to classic benchmarks like 60/40, 100% SPY, and 100% AGG.
 
 ## Features
 
