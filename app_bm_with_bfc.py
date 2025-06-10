@@ -883,3 +883,33 @@ def display_monthly_returns():
 
 
 display_monthly_returns()
+
+
+# Add comprehensive legal disclaimer
+st.markdown("---")  # Add a separator line
+st.markdown(
+    """
+### Important Disclosures and Disclaimers
+
+**For Illustrative Purposes Only:** The information, analysis, and tools presented in this dashboard are for illustrative and educational purposes only. They are not intended to provide investment advice or recommendations.
+
+**No Guarantees:** Past performance is not indicative of future results. All investments involve risk, including the potential loss of principal. There can be no guarantee that any investment strategy will be successful.
+
+**Data Sources:** Data is sourced from publicly available information and third-party providers, including but not limited to Yahoo Finance. While we believe these sources to be reliable, we make no representations or warranties as to the accuracy, completeness, or reliability of any information provided.
+
+**No Investment Advice:** This dashboard does not constitute an offer to sell or a solicitation of an offer to buy any security or investment product. Nothing contained herein should be construed as investment, legal, or tax advice.
+
+**Assumptions and Limitations:** The analysis presented relies on certain assumptions and historical data. Results may vary based on different time periods, market conditions, and other factors. The backtesting results shown are hypothetical and do not reflect actual trading or investment results.
+
+**No Liability:** Blockforce Capital and its affiliates make no representations or warranties of any kind, express or implied, about the completeness, accuracy, reliability, suitability, or availability of the information, products, services, or related graphics contained in this dashboard for any purpose.
+
+**Third-Party Content:** Any third-party content, tools, or services referenced in this dashboard are provided for informational purposes only. We do not endorse or guarantee the accuracy of any third-party content.
+
+**Use at Your Own Risk:** Any reliance you place on such information is strictly at your own risk. We strongly recommend consulting with qualified financial, legal, and tax professionals before making any investment decisions.
+
+**Copyright Notice:** © 2024 Blockforce Capital. All rights reserved. This dashboard and its contents are proprietary and confidential.
+"""
+)
+
+# Add a final separator
+st.markdown("---")
