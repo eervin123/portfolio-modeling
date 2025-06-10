@@ -102,7 +102,7 @@ st.write(
 )
 
 # Slider for BFC allocation
-bfc_allocation = st.slider("Blockforce Capital Allocation (%)", 1, 10, 1, step=1)
+bfc_allocation = st.slider("Blockforce Capital Allocation (%)", 1, 25, 1, step=1)
 
 # Calculate weights
 spy_base = 0.60
@@ -478,33 +478,34 @@ with col_table:
         },
         minWidth=100,
     )
+    # Hide the _is_section column
+    gb_stats.configure_column("_is_section", hide=True)
     # Enhanced section header styling
     stats_row_style = JsCode(
         f"""
     function(params) {{
-        let dark = '{blockforce_colors['background_card']}';
-        let darker = '{blockforce_colors['background_dark']}';
         if (params.data._is_section) {{
             return {{
                 'backgroundColor': '{blockforce_colors['primary_dark']}',
                 'color': '{blockforce_colors['accent_turquoise']}',
                 'fontWeight': 'bold',
-                'fontSize': '1.25em',
-                'paddingTop': '10px',
-                'paddingBottom': '10px',
-                'borderLeft': '6px solid {blockforce_colors['accent_turquoise']}',
-                'borderBottom': '2px solid {blockforce_colors['accent_turquoise']}'
+                'fontSize': '1.1em',
+                'borderBottom': '2px solid {blockforce_colors['accent_turquoise']}',
+                'paddingTop': '0px',
+                'paddingBottom': '0px'
             }};
         }}
+        let dark = '{blockforce_colors['background_card']}';
+        let darker = '{blockforce_colors['background_dark']}';
         let bg = (params.node.rowIndex % 2 === 0) ? dark : darker;
-        return {{'backgroundColor': bg}};
+        return {{'backgroundColor': bg, 'color': '{blockforce_colors['text_primary']}', 'fontWeight': 'normal', 'fontSize': '1em'}};
     }}
     """
     )
     gb_stats.configure_grid_options(
         getRowStyle=stats_row_style,
         headerHeight=36,
-        rowHeight=36,
+        rowHeight=24,
         suppressRowClickSelection=True,
         suppressCellSelection=True,
         domLayout="normal",
@@ -513,14 +514,9 @@ with col_table:
             "color": blockforce_colors["text_primary"],
         },
     )
-    # When displaying, ensure _is_section is dropped
-    display_df = (
-        stats_df.drop(columns=["_is_section"])
-        if "_is_section" in stats_df.columns
-        else stats_df
-    )
+    # Pass the full DataFrame (with _is_section) to AgGr
     AgGrid(
-        display_df,
+        stats_df,
         gridOptions=gb_stats.build(),
         fit_columns_on_grid_load=True,
         theme="alpine-dark",
@@ -781,8 +777,8 @@ def display_monthly_returns():
             return {{
                 'backgroundColor': '{blockforce_colors['primary_dark']}',
                 'color': '{blockforce_colors['accent_turquoise']}',
-                'fontWeight': 'bold',
-                'fontSize': '1.1em',
+                'fontWeight': 'normal',
+                'fontSize': '1em',
                 'borderBottom': '2px solid {blockforce_colors['accent_turquoise']}'
             }};
         }}
@@ -830,22 +826,3 @@ def display_monthly_returns():
 
 
 display_monthly_returns()
-
-
-def show_debug_stats_table():
-    st.markdown("### DEBUG: Full Stats Table (Raw DataFrame)")
-    st.dataframe(stats_df, use_container_width=True)
-    st.markdown("### DEBUG: Full Stats Table (AgGrid)")
-    gb_debug = GridOptionsBuilder.from_dataframe(stats_df)
-    gb_debug.configure_default_column(minWidth=160, wrapText=True, autoHeight=True)
-    AgGrid(
-        stats_df.reset_index(drop=True),
-        gridOptions=gb_debug.build(),
-        fit_columns_on_grid_load=False,
-        theme="alpine-dark",
-        height=900,
-        enable_enterprise_modules=False,
-    )
-
-
-show_debug_stats_table()
