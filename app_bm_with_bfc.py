@@ -413,23 +413,30 @@ with col_table:
         if (params.data.Metric.toLowerCase().includes('start') || params.data.Metric.toLowerCase().includes('end')) {
             return params.value;
         }
+        // Always format avg up/down month as percent
+        let metric = params.data.Metric.toLowerCase();
+        if (metric.includes('avg up month') || metric.includes('avg down month')) {
+            return (params.value * 100).toFixed(2) + '%';
+        }
         // Don't format as percent if metric contains 'days'
-        if (params.data.Metric.toLowerCase().includes('days')) {
+        if (metric.includes('days')) {
             return params.value.toFixed(2);
         }
-        // Format as percent for all returns, cagr, mean, best/worst, ytd, mtd, since incep, perc
-        let pct_keywords = ['return', 'cagr', 'mean', 'best', 'worst', 'ytd', 'mtd', 'since', 'perc'];
+        // Expanded: Format as percent for all return-related stats
+        let pct_keywords = [
+            'return', 'cagr', 'mean', 'best', 'worst', 'ytd', 'mtd', 'since', 'perc', 'annualized', 'inception', 'up month', 'down month'
+        ];
         for (let i = 0; i < pct_keywords.length; i++) {
-            if (params.data.Metric.toLowerCase().includes(pct_keywords[i])) {
+            if (metric.includes(pct_keywords[i])) {
                 return (params.value * 100).toFixed(2) + '%';
             }
         }
         // Format as percent for drawdown, vol
-        if (params.data.Metric.toLowerCase().includes('drawdown') || params.data.Metric.toLowerCase().includes('vol')) {
+        if (metric.includes('drawdown') || metric.includes('vol')) {
             return (params.value * 100).toFixed(2) + '%';
         }
         // Format as decimal (Sharpe, Sortino, Calmar, Skew, Kurt)
-        if (params.data.Metric.toLowerCase().includes('sharpe') || params.data.Metric.toLowerCase().includes('sortino') || params.data.Metric.toLowerCase().includes('calmar') || params.data.Metric.toLowerCase().includes('skew') || params.data.Metric.toLowerCase().includes('kurt')) {
+        if (metric.includes('sharpe') || metric.includes('sortino') || metric.includes('calmar') || metric.includes('skew') || metric.includes('kurt')) {
             return params.value.toFixed(2);
         }
         // Default
