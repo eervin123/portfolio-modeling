@@ -36,7 +36,9 @@ def download_data():
     retry_delay = 5
     for attempt in range(max_retries):
         try:
-            data = yf.download(tickers, start="2015-01-01", end="2026-01-01")["Close"]
+            data = yf.download(
+                tickers, start="2015-01-01", end="2026-01-01", auto_adjust=True
+            )["Close"]
             if not data.empty:
                 return data.ffill().dropna()
         except Exception as e:
@@ -505,8 +507,7 @@ def display_monthly_returns():
     gb.configure_default_column(
         resizable=True, filterable=False, sortable=False, wrapText=True, autoHeight=True
     )
-    gb.configure_grid_options(domLayout="normal", groupDisplayType="multipleColumns")
-    # Prevent wrapping for Asset and Year columns and set min width
+    gb.configure_grid_options(domLayout="normal", rowHeight=24)
     gb.configure_column("Asset", wrapText=False, minWidth=200, maxWidth=300)
     gb.configure_column("Year", wrapText=False, minWidth=80, maxWidth=100)
 
@@ -522,7 +523,7 @@ def display_monthly_returns():
                 'fontWeight': 'bold',
                 'fontSize': '1.1em',
                 'borderBottom': '2px solid {blockforce_colors['accent_turquoise']}'
-            }}
+            }};
         }}
         // Highlight Custom Portfolio row (teal font)
         if (params.data.Asset && params.data.Asset.startsWith('Custom Portfolio')) {{
@@ -530,10 +531,14 @@ def display_monthly_returns():
                 'color': '{blockforce_colors['accent_turquoise']}',
                 'fontWeight': 'bold',
                 'backgroundColor': '{blockforce_colors['background_dark']}'
-            }}
+            }};
         }}
         // Alternate year backgrounds (for asset rows)
-        let yearSep = params.api.getDisplayedRowAtIndex(params.node.rowIndex - (params.node.rowIndex % 6));
+        let yearSepIdx = params.node.rowIndex;
+        while (yearSepIdx > 0 && params.api.getDisplayedRowAtIndex(yearSepIdx).data.Asset) {{
+            yearSepIdx--;
+        }}
+        let yearSep = params.api.getDisplayedRowAtIndex(yearSepIdx);
         if (yearSep && yearSep.data && yearSep.data.Year) {{
             let year = parseInt(yearSep.data.Year);
             if (!isNaN(year)) {{
@@ -544,7 +549,7 @@ def display_monthly_returns():
     }}
     """
     )
-    gb.configure_grid_options(getRowStyle=row_style_js, rowHeight=24)
+    gb.configure_grid_options(getRowStyle=row_style_js)
 
     AgGrid(
         df,
@@ -552,7 +557,7 @@ def display_monthly_returns():
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
         theme="alpine",
-        height=800,
+        height=920,
         enable_enterprise_modules=False,
     )
 
