@@ -422,7 +422,8 @@ with col_table:
             'One Year', 'Three Year', 'Five Year', 'Ten Year',
             'Best Month', 'Worst Month', 'Best Year', 'Worst Year',
             'Avg Up Month', 'Avg Down Month', 'Win Year Perc', 'Win 12m Perc',
-            'Max Drawdown', 'Avg Drawdown', 'Drawdown'
+            'Max Drawdown', 'Avg Drawdown', 'Drawdown',
+            'Yearly Mean', 'Yearly Vol', 'Best Day', 'Worst Day'
         ].includes(metric)) {
             return (params.value * 100).toFixed(2) + '%';
         }
