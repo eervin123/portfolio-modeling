@@ -285,65 +285,239 @@ col_table, col_bars = st.columns([1, 2])
 
 with col_table:
     st.subheader("Portfolio Statistics")
-    # Use raw values, not formatted strings
-    custom_stats_raw = list(custom_portfolio.stats.iloc[:, 0].values)
-    benchmark_stats_raw = list(benchmark_60_40.stats.iloc[:, 0].values)
-    spy_stats_raw = list(benchmark_spy.stats.iloc[:, 0].values)
-    bfc_stats_raw = list(benchmark_bfc.stats.iloc[:, 0].values)
-    stats_df = pd.DataFrame(
-        {
-            "Metric": custom_portfolio.stats.index,
-            f"Custom Portfolio ({bfc_allocation}% BFC Net)": custom_stats_raw,
-            "60/40 Portfolio": benchmark_stats_raw,
-            "100% SPY": spy_stats_raw,
-            "100% BFC Net": bfc_stats_raw,
+    # Get all available metrics from the stats DataFrame
+    stats_source = custom_portfolio.stats
+    all_metrics = list(stats_source.index)
+
+    # Define groups and their metrics (order and group similar to bt's display)
+    stat_sections = [
+        ("Period", ["start", "end", "rf"]),
+        (
+            "Returns",
+            [
+                "total_return",
+                "cagr",
+                "mtd",
+                "three_month",
+                "six_month",
+                "ytd",
+                "one_year",
+                "three_year",
+                "five_year",
+                "ten_year",
+                "since_incep_ann",
+            ],
+        ),
+        (
+            "Risk",
+            [
+                "max_drawdown",
+                "calmar",
+                "daily_sharpe",
+                "daily_sortino",
+                "sharpe",
+                "sortino",
+                "daily_mean_ann",
+                "daily_vol_ann",
+                "daily_skew",
+                "daily_kurt",
+                "monthly_sharpe",
+                "monthly_sortino",
+                "monthly_mean_ann",
+                "monthly_vol_ann",
+                "monthly_skew",
+                "monthly_kurt",
+                "yearly_sharpe",
+                "yearly_sortino",
+                "yearly_mean",
+                "yearly_vol",
+                "yearly_skew",
+                "yearly_kurt",
+            ],
+        ),
+        (
+            "Best/Worst",
+            [
+                "best_day",
+                "worst_day",
+                "best_month",
+                "worst_month",
+                "best_year",
+                "worst_year",
+            ],
+        ),
+        (
+            "Drawdowns & Win Rates",
+            [
+                "avg_drawdown",
+                "avg_drawdown_days",
+                "avg_up_month",
+                "avg_down_month",
+                "win_year_perc",
+                "win_12m_perc",
+            ],
+        ),
+    ]
+
+    # Build a list of (section, metric) tuples for display order
+    display_rows = []
+    for section, metrics in stat_sections:
+        # Only add section if at least one metric is present
+        present_metrics = [m for m in metrics if m in all_metrics]
+        if present_metrics:
+            display_rows.append((section, None))  # Section header
+            for m in present_metrics:
+                display_rows.append((section, m))
+
+    # Build DataFrame for display
+    rows = []
+    for section, metric in display_rows:
+        if metric is None:
+            # Section header row
+            row = {"Metric": section}
+            for col in [
+                f"Custom Portfolio ({bfc_allocation}% BFC Net)",
+                "60/40 Portfolio",
+                "100% SPY",
+                "100% BFC Net",
+            ]:
+                row[col] = ""
+            row["_is_section"] = True
+        else:
+            row = {"Metric": metric.replace("_", " ").title()}
+            for label, stats_obj in zip(
+                [
+                    f"Custom Portfolio ({bfc_allocation}% BFC Net)",
+                    "60/40 Portfolio",
+                    "100% SPY",
+                    "100% BFC Net",
+                ],
+                [custom_portfolio, benchmark_60_40, benchmark_spy, benchmark_bfc],
+            ):
+                val = (
+                    stats_obj.stats.loc[metric, stats_obj.stats.columns[0]]
+                    if metric in stats_obj.stats.index
+                    else None
+                )
+                row[label] = val
+            row["_is_section"] = False
+        rows.append(row)
+    stats_df = pd.DataFrame(rows)
+
+    # Custom value formatter for stats table
+    stats_formatter = JsCode(
+        """
+    function(params) {
+        if (params.value == null || params.value === '') return '';
+        // Format as date string
+        if (params.data.Metric.toLowerCase().includes('start') || params.data.Metric.toLowerCase().includes('end')) {
+            return params.value;
         }
+        // Don't format as percent if metric contains 'days'
+        if (params.data.Metric.toLowerCase().includes('days')) {
+            return params.value.toFixed(2);
+        }
+        // Format as percent for all returns, cagr, mean, best/worst, ytd, mtd, since incep, perc
+        let pct_keywords = ['return', 'cagr', 'mean', 'best', 'worst', 'ytd', 'mtd', 'since', 'perc'];
+        for (let i = 0; i < pct_keywords.length; i++) {
+            if (params.data.Metric.toLowerCase().includes(pct_keywords[i])) {
+                return (params.value * 100).toFixed(2) + '%';
+            }
+        }
+        // Format as percent for drawdown, vol
+        if (params.data.Metric.toLowerCase().includes('drawdown') || params.data.Metric.toLowerCase().includes('vol')) {
+            return (params.value * 100).toFixed(2) + '%';
+        }
+        // Format as decimal (Sharpe, Sortino, Calmar, Skew, Kurt)
+        if (params.data.Metric.toLowerCase().includes('sharpe') || params.data.Metric.toLowerCase().includes('sortino') || params.data.Metric.toLowerCase().includes('calmar') || params.data.Metric.toLowerCase().includes('skew') || params.data.Metric.toLowerCase().includes('kurt')) {
+            return params.value.toFixed(2);
+        }
+        // Default
+        return params.value;
+    }
+    """
     )
 
-    # Minimal AgGrid call for stats table, with custom formatting and coloring
+    # Build grid options for stats table
     gb_stats = GridOptionsBuilder.from_dataframe(stats_df)
+    # Configure columns
     for col in stats_df.columns:
-        if col != "Metric":
-            gb_stats.configure_column(col, valueFormatter=custom_formatter)
-    # Custom row styling JS (escape curly braces for f-string)
-    row_style_js = JsCode(
+        if col == f"Custom Portfolio ({bfc_allocation}% BFC Net)":
+            gb_stats.configure_column(
+                col,
+                valueFormatter=stats_formatter,
+                cellStyle={
+                    "textAlign": "right",
+                    "color": blockforce_colors["accent_turquoise"],
+                    "fontWeight": "bold",
+                },
+            )
+        elif col not in ["Metric", "_is_section"]:
+            gb_stats.configure_column(
+                col,
+                valueFormatter=stats_formatter,
+                cellStyle={
+                    "textAlign": "right",
+                    "color": blockforce_colors["text_primary"],
+                },
+            )
+    # Configure Metric column
+    gb_stats.configure_column(
+        "Metric",
+        cellStyle={
+            "textAlign": "left",
+            "fontWeight": "bold",
+            "color": blockforce_colors["text_primary"],
+        },
+        minWidth=100,
+    )
+    # Enhanced section header styling
+    stats_row_style = JsCode(
         f"""
     function(params) {{
-        // Highlight Custom Portfolio row (teal font)
-        if (params.data['Metric'] && params.data['Metric'].toLowerCase().includes('custom portfolio')) {{
+        let dark = '{blockforce_colors['background_card']}';
+        let darker = '{blockforce_colors['background_dark']}';
+        if (params.data._is_section) {{
             return {{
+                'backgroundColor': '{blockforce_colors['primary_dark']}',
                 'color': '{blockforce_colors['accent_turquoise']}',
                 'fontWeight': 'bold',
-                'backgroundColor': '{blockforce_colors['background_dark']}'
+                'fontSize': '1.25em',
+                'paddingTop': '10px',
+                'paddingBottom': '10px',
+                'borderLeft': '6px solid {blockforce_colors['accent_turquoise']}',
+                'borderBottom': '2px solid {blockforce_colors['accent_turquoise']}'
             }};
         }}
-        // Default row color: set background for all other rows
-        return {{
-            'color': '{blockforce_colors['text_primary']}',
-            'backgroundColor': '{blockforce_colors['background_card']}'
-        }};
+        let bg = (params.node.rowIndex % 2 === 0) ? dark : darker;
+        return {{'backgroundColor': bg}};
     }}
     """
     )
     gb_stats.configure_grid_options(
-        getRowStyle=row_style_js,
+        getRowStyle=stats_row_style,
         headerHeight=36,
-        rowHeight=32,
+        rowHeight=36,
         suppressRowClickSelection=True,
         suppressCellSelection=True,
         domLayout="normal",
-        # Custom style for grid background
         gridStyle={
             "backgroundColor": blockforce_colors["background_card"],
             "color": blockforce_colors["text_primary"],
         },
     )
+    # When displaying, ensure _is_section is dropped
+    display_df = (
+        stats_df.drop(columns=["_is_section"])
+        if "_is_section" in stats_df.columns
+        else stats_df
+    )
     AgGrid(
-        stats_df.reset_index(drop=True),
+        display_df,
         gridOptions=gb_stats.build(),
         fit_columns_on_grid_load=True,
         theme="alpine-dark",
-        height=800,
+        height=950,
         enable_enterprise_modules=False,
         allow_unsafe_jscode=True,
     )
