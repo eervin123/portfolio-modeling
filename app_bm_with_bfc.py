@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import numpy as np
 import time
 from plotly.subplots import make_subplots
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # Set page config
 st.set_page_config(
@@ -410,7 +411,6 @@ def display_monthly_returns():
 
     # Helper to get annual returns from price series
     def get_annual_returns(prices):
-        # For partial years, calculate based on available months
         annual = prices.resample("YE").last().pct_change()
         annual.index = annual.index.to_period("Y")
         return annual
@@ -424,30 +424,27 @@ def display_monthly_returns():
         "100% BFC Net": benchmark_bfc[0].prices,
     }
 
-    # Debug: Print date ranges for each series
-    # st.write("Debug - Date ranges:")
-    # for name, prices in series.items():
-    #     st.write(f"{name}: {prices.index.min()} to {prices.index.max()}")
-
-    # Compute monthly and annual returns
     monthly_returns = {k: get_monthly_returns(v) for k, v in series.items()}
     annual_returns = {k: get_annual_returns(v) for k, v in series.items()}
 
-    # Build table
+    # Build a flat table: one row per asset per year, with manual year separator rows
     rows = []
-    # Ensure we include all years from 2019 to 2025
     years = list(range(2019, 2026))
-
-
-    for year in years:
-        rows.append(
-            [str(year), "", "", "", "", "", "", "", "", "", "", "", "", ""]
-        )  # Blank row for year
+    months = [
+        pd.Timestamp(year=2000, month=m, day=1).strftime("%b") for m in range(1, 13)
+    ]
+    for year in reversed(years):
+        # Insert a separator row for the year
+        sep_row = {
+            "Year": str(year),
+            "Asset": "",
+            **{m: "" for m in months},
+            "Annual": "",
+        }
+        rows.append(sep_row)
         for name in series.keys():
-            row = ["", name]  # Year col blank for asset rows
-
+            row = {"Year": "", "Asset": name}
             # Monthly returns for this year
-            monthly_vals = []
             for m in range(1, 13):
                 period = pd.Period(f"{year}-{m:02d}")
                 val = (
@@ -455,52 +452,110 @@ def display_monthly_returns():
                     if period in monthly_returns[name].index
                     else float("nan")
                 )
-                monthly_vals.append(val)
-                row.append(f"{val*100:.1f}%" if pd.notnull(val) else "")
-
-            # Calculate annual return for partial years
+                row[pd.Timestamp(year=year, month=m, day=1).strftime("%b")] = (
+                    f"{val*100:.1f}%" if pd.notnull(val) else ""
+                )
+            # Annual return
             if year in [2019, 2025]:
-                # Filter out NaN values and calculate geometric return
-                valid_returns = [r for r in monthly_vals if pd.notnull(r)]
-                if valid_returns:
-                    # Calculate geometric return for available months
-                    ann_return = (1 + pd.Series(valid_returns)).prod() - 1
-                    row.append(f"{ann_return*100:.1f}%*")
+                monthly_vals = [
+                    monthly_returns[name].loc[pd.Period(f"{year}-{m:02d}")]
+                    for m in range(1, 13)
+                    if pd.Period(f"{year}-{m:02d}") in monthly_returns[name].index
+                ]
+                if monthly_vals:
+                    ann_return = (1 + pd.Series(monthly_vals)).prod() - 1
+                    row["Annual"] = f"{ann_return*100:.1f}%*"
                 else:
-                    row.append("")
+                    row["Annual"] = ""
             else:
-                # For complete years, use the standard annual return
                 period = pd.Period(f"{year}")
                 ann = (
                     annual_returns[name].loc[period]
                     if period in annual_returns[name].index
                     else float("nan")
                 )
-                row.append(f"{ann*100:.1f}%" if pd.notnull(ann) else "")
-
+                row["Annual"] = f"{ann*100:.1f}%" if pd.notnull(ann) else ""
             rows.append(row)
 
-    columns = ["Year", "Asset"] + [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-        "Annual",
-    ]
+    columns = ["Year", "Asset"] + months + ["Annual"]
     df = pd.DataFrame(rows, columns=columns)
 
     st.markdown("## Monthly and Annual Returns by Portfolio")
-    st.table(df)
 
-    # Add footnote for partial years
+    # Blockforce Capital Color Palette
+    blockforce_colors = {
+        "primary_darkest": "#13151e",
+        "primary_dark": "#39384f",
+        "primary_medium": "#615987",
+        "primary_light": "#928baf",
+        "accent_gold": "#ffc100",
+        "accent_turquoise": "#77e8e3",
+        "accent_sky": "#769de5",
+        "accent_coral": "#e86449",
+        "background_dark": "#0A0F1E",
+        "background_card": "#141B2E",
+        "background_hover": "#1E2A3B",
+        "text_primary": "#FFFFFF",
+        "text_secondary": "#769de5",
+        "text_muted": "#928baf",
+    }
+
+    # Build grid options
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_default_column(
+        resizable=True, filterable=False, sortable=False, wrapText=True, autoHeight=True
+    )
+    gb.configure_grid_options(domLayout="normal", groupDisplayType="multipleColumns")
+    # Prevent wrapping for Asset and Year columns and set min width
+    gb.configure_column("Asset", wrapText=False, minWidth=200, maxWidth=300)
+    gb.configure_column("Year", wrapText=False, minWidth=80, maxWidth=100)
+
+    # Custom row styling JS (escape curly braces for f-string)
+    row_style_js = JsCode(
+        f"""
+    function(params) {{
+        // Year separator row: Asset is empty
+        if (!params.data.Asset) {{
+            return {{
+                'backgroundColor': '{blockforce_colors['primary_dark']}',
+                'color': '{blockforce_colors['accent_turquoise']}',
+                'fontWeight': 'bold',
+                'fontSize': '1.1em',
+                'borderBottom': '2px solid {blockforce_colors['accent_turquoise']}'
+            }}
+        }}
+        // Highlight Custom Portfolio row (teal font)
+        if (params.data.Asset && params.data.Asset.startsWith('Custom Portfolio')) {{
+            return {{
+                'color': '{blockforce_colors['accent_turquoise']}',
+                'fontWeight': 'bold',
+                'backgroundColor': '{blockforce_colors['background_dark']}'
+            }}
+        }}
+        // Alternate year backgrounds (for asset rows)
+        let yearSep = params.api.getDisplayedRowAtIndex(params.node.rowIndex - (params.node.rowIndex % 6));
+        if (yearSep && yearSep.data && yearSep.data.Year) {{
+            let year = parseInt(yearSep.data.Year);
+            if (!isNaN(year)) {{
+                return {{'backgroundColor': (year % 2 === 0) ? '{blockforce_colors['background_card']}' : '{blockforce_colors['background_dark']}', 'color': '{blockforce_colors['text_primary']}'}};
+            }}
+        }}
+        return {{'color': '{blockforce_colors['text_primary']}'}};
+    }}
+    """
+    )
+    gb.configure_grid_options(getRowStyle=row_style_js, rowHeight=24)
+
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
+        theme="alpine",
+        height=800,
+        enable_enterprise_modules=False,
+    )
+
     st.markdown(
         "* Partial year (2019 or 2025) - returns calculated based on available months only"
     )
