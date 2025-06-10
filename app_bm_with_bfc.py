@@ -27,6 +27,24 @@ st.subheader(
     "Analyze the impact of adding Blockforce Capital allocation to your portfolio"
 )
 
+# Blockforce Capital Color Palette
+blockforce_colors = {
+    "primary_darkest": "#13151e",
+    "primary_dark": "#39384f",
+    "primary_medium": "#615987",
+    "primary_light": "#928baf",
+    "accent_gold": "#ffc100",
+    "accent_turquoise": "#77e8e3",
+    "accent_sky": "#769de5",
+    "accent_coral": "#e86449",
+    "background_dark": "#0A0F1E",
+    "background_card": "#141B2E",
+    "background_hover": "#1E2A3B",
+    "text_primary": "#FFFFFF",
+    "text_secondary": "#769de5",
+    "text_muted": "#928baf",
+}
+
 
 # Cache the data download
 @st.cache_data
@@ -188,7 +206,7 @@ fig.update_layout(
 
 
 # Helper function to format stats
-def format_stat(val):
+def format_stat(val, metric=None):
     if isinstance(val, (list, np.ndarray)) and len(val) == 1:
         val = val[0]
     if isinstance(val, pd.Timestamp):
@@ -199,6 +217,36 @@ def format_stat(val):
         else:
             return f"{val:.4f}"
     return str(val)
+
+
+# Custom JS valueFormatter for row-based formatting
+custom_formatter = JsCode(
+    """
+function(params) {
+    var metric = params.data['Metric'];
+    var value = params.value;
+    if (value == null || value === '') return '';
+    // Format as date string
+    if (metric === 'start' || metric === 'end') {
+        return value;
+    }
+    // Format as percent
+    if ([
+        'total_return', 'cagr', 'max_drawdown', 'calmar', 'mtd', 'three_month', 'six_month', 'ytd', 'one_year', 'three_year', 'five_year', 'ten_year', 'best_month', 'worst_month', 'best_year', 'worst_year'
+    ].includes(metric)) {
+        return (value * 100).toFixed(2) + '%';
+    }
+    // Format as decimal (Sharpe, Sortino, Calmar)
+    if ([
+        'sharpe', 'daily_sharpe', 'sortino', 'daily_sortino', 'calmar'
+    ].includes(metric)) {
+        return value.toFixed(2);
+    }
+    // Default: show as is
+    return value;
+}
+"""
+)
 
 
 # --- Top: Performance Plot and Pie Chart ---
@@ -237,24 +285,68 @@ col_table, col_bars = st.columns([1, 2])
 
 with col_table:
     st.subheader("Portfolio Statistics")
-    custom_stats_clean = [
-        format_stat(x) for x in custom_portfolio.stats.iloc[:, 0].values
-    ]
-    benchmark_stats_clean = [
-        format_stat(x) for x in benchmark_60_40.stats.iloc[:, 0].values
-    ]
-    spy_stats_clean = [format_stat(x) for x in benchmark_spy.stats.iloc[:, 0].values]
-    bfc_stats_clean = [format_stat(x) for x in benchmark_bfc.stats.iloc[:, 0].values]
+    # Use raw values, not formatted strings
+    custom_stats_raw = list(custom_portfolio.stats.iloc[:, 0].values)
+    benchmark_stats_raw = list(benchmark_60_40.stats.iloc[:, 0].values)
+    spy_stats_raw = list(benchmark_spy.stats.iloc[:, 0].values)
+    bfc_stats_raw = list(benchmark_bfc.stats.iloc[:, 0].values)
     stats_df = pd.DataFrame(
         {
             "Metric": custom_portfolio.stats.index,
-            f"Custom Portfolio ({bfc_allocation}% BFC Net)": custom_stats_clean,
-            "60/40 Portfolio": benchmark_stats_clean,
-            "100% SPY": spy_stats_clean,
-            "100% BFC Net": bfc_stats_clean,
+            f"Custom Portfolio ({bfc_allocation}% BFC Net)": custom_stats_raw,
+            "60/40 Portfolio": benchmark_stats_raw,
+            "100% SPY": spy_stats_raw,
+            "100% BFC Net": bfc_stats_raw,
         }
     )
-    st.dataframe(stats_df, hide_index=True, use_container_width=False, height=800)
+
+    # Minimal AgGrid call for stats table, with custom formatting and coloring
+    gb_stats = GridOptionsBuilder.from_dataframe(stats_df)
+    for col in stats_df.columns:
+        if col != "Metric":
+            gb_stats.configure_column(col, valueFormatter=custom_formatter)
+    # Custom row styling JS (escape curly braces for f-string)
+    row_style_js = JsCode(
+        f"""
+    function(params) {{
+        // Highlight Custom Portfolio row (teal font)
+        if (params.data['Metric'] && params.data['Metric'].toLowerCase().includes('custom portfolio')) {{
+            return {{
+                'color': '{blockforce_colors['accent_turquoise']}',
+                'fontWeight': 'bold',
+                'backgroundColor': '{blockforce_colors['background_dark']}'
+            }};
+        }}
+        // Default row color: set background for all other rows
+        return {{
+            'color': '{blockforce_colors['text_primary']}',
+            'backgroundColor': '{blockforce_colors['background_card']}'
+        }};
+    }}
+    """
+    )
+    gb_stats.configure_grid_options(
+        getRowStyle=row_style_js,
+        headerHeight=36,
+        rowHeight=32,
+        suppressRowClickSelection=True,
+        suppressCellSelection=True,
+        domLayout="normal",
+        # Custom style for grid background
+        gridStyle={
+            "backgroundColor": blockforce_colors["background_card"],
+            "color": blockforce_colors["text_primary"],
+        },
+    )
+    AgGrid(
+        stats_df.reset_index(drop=True),
+        gridOptions=gb_stats.build(),
+        fit_columns_on_grid_load=True,
+        theme="alpine-dark",
+        height=800,
+        enable_enterprise_modules=False,
+        allow_unsafe_jscode=True,
+    )
 
 with col_bars:
     bar_metrics = [
@@ -431,10 +523,11 @@ def display_monthly_returns():
 
     # Build a flat table: one row per asset per year, with manual year separator rows
     rows = []
-    years = list(range(2019, 2026))
+    years = sorted(list(set([d.year for d in all_data.index])))
     months = [
         pd.Timestamp(year=2000, month=m, day=1).strftime("%b") for m in range(1, 13)
     ]
+
     for year in reversed(years):
         # Insert a separator row for the year
         sep_row = {
@@ -444,6 +537,7 @@ def display_monthly_returns():
             "Annual": "",
         }
         rows.append(sep_row)
+
         for name in series.keys():
             row = {"Year": "", "Asset": name}
             # Monthly returns for this year
@@ -452,29 +546,33 @@ def display_monthly_returns():
                 val = (
                     monthly_returns[name].loc[period]
                     if period in monthly_returns[name].index
-                    else float("nan")
+                    else None
                 )
                 row[pd.Timestamp(year=year, month=m, day=1).strftime("%b")] = (
                     f"{val*100:.1f}%" if pd.notnull(val) else ""
                 )
-            # Annual return
+
+            # Annual return - special handling for partial years
             if year in [2019, 2025]:
+                # Get all available monthly returns for the year
                 monthly_vals = [
                     monthly_returns[name].loc[pd.Period(f"{year}-{m:02d}")]
                     for m in range(1, 13)
                     if pd.Period(f"{year}-{m:02d}") in monthly_returns[name].index
                 ]
                 if monthly_vals:
+                    # Calculate annual return from available months
                     ann_return = (1 + pd.Series(monthly_vals)).prod() - 1
                     row["Annual"] = f"{ann_return*100:.1f}%*"
                 else:
                     row["Annual"] = ""
             else:
+                # Normal year - use the annual return directly
                 period = pd.Period(f"{year}")
                 ann = (
                     annual_returns[name].loc[period]
                     if period in annual_returns[name].index
-                    else float("nan")
+                    else None
                 )
                 row["Annual"] = f"{ann*100:.1f}%" if pd.notnull(ann) else ""
             rows.append(row)
@@ -483,24 +581,6 @@ def display_monthly_returns():
     df = pd.DataFrame(rows, columns=columns)
 
     st.markdown("## Monthly and Annual Returns by Portfolio")
-
-    # Blockforce Capital Color Palette
-    blockforce_colors = {
-        "primary_darkest": "#13151e",
-        "primary_dark": "#39384f",
-        "primary_medium": "#615987",
-        "primary_light": "#928baf",
-        "accent_gold": "#ffc100",
-        "accent_turquoise": "#77e8e3",
-        "accent_sky": "#769de5",
-        "accent_coral": "#e86449",
-        "background_dark": "#0A0F1E",
-        "background_card": "#141B2E",
-        "background_hover": "#1E2A3B",
-        "text_primary": "#FFFFFF",
-        "text_secondary": "#769de5",
-        "text_muted": "#928baf",
-    }
 
     # Build grid options
     gb = GridOptionsBuilder.from_dataframe(df)
@@ -511,7 +591,7 @@ def display_monthly_returns():
     gb.configure_column("Asset", wrapText=False, minWidth=200, maxWidth=300)
     gb.configure_column("Year", wrapText=False, minWidth=80, maxWidth=100)
 
-    # Custom row styling JS (escape curly braces for f-string)
+    # Restore the original row_style_js for the monthly returns table
     row_style_js = JsCode(
         f"""
     function(params) {{
@@ -538,11 +618,13 @@ def display_monthly_returns():
         while (yearSepIdx > 0 && params.api.getDisplayedRowAtIndex(yearSepIdx).data.Asset) {{
             yearSepIdx--;
         }}
-        let yearSep = params.api.getDisplayedRowAtIndex(yearSepIdx);
-        if (yearSep && yearSep.data && yearSep.data.Year) {{
-            let year = parseInt(yearSep.data.Year);
-            if (!isNaN(year)) {{
-                return {{'backgroundColor': (year % 2 === 0) ? '{blockforce_colors['background_card']}' : '{blockforce_colors['background_dark']}', 'color': '{blockforce_colors['text_primary']}'}};
+        if (yearSepIdx >= 0) {{
+            let yearSep = params.api.getDisplayedRowAtIndex(yearSepIdx);
+            if (yearSep && yearSep.data && yearSep.data.Year) {{
+                let year = parseInt(yearSep.data.Year);
+                if (!isNaN(year)) {{
+                    return {{'backgroundColor': (year % 2 === 0) ? '{blockforce_colors['background_card']}' : '{blockforce_colors['background_dark']}', 'color': '{blockforce_colors['text_primary']}'}};
+                }}
             }}
         }}
         return {{'color': '{blockforce_colors['text_primary']}'}};
@@ -556,7 +638,7 @@ def display_monthly_returns():
         gridOptions=gb.build(),
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
-        theme="alpine",
+        theme="alpine-dark",
         height=920,
         enable_enterprise_modules=False,
     )
@@ -567,3 +649,22 @@ def display_monthly_returns():
 
 
 display_monthly_returns()
+
+
+def show_debug_stats_table():
+    st.markdown("### DEBUG: Full Stats Table (Raw DataFrame)")
+    st.dataframe(stats_df, use_container_width=True)
+    st.markdown("### DEBUG: Full Stats Table (AgGrid)")
+    gb_debug = GridOptionsBuilder.from_dataframe(stats_df)
+    gb_debug.configure_default_column(minWidth=160, wrapText=True, autoHeight=True)
+    AgGrid(
+        stats_df.reset_index(drop=True),
+        gridOptions=gb_debug.build(),
+        fit_columns_on_grid_load=False,
+        theme="alpine-dark",
+        height=900,
+        enable_enterprise_modules=False,
+    )
+
+
+show_debug_stats_table()
