@@ -102,7 +102,7 @@ st.write(
 )
 
 # Slider for BFC allocation
-bfc_allocation = st.slider("Blockforce Capital Allocation (%)", 1, 25, 1, step=1)
+bfc_allocation = st.slider("Blockforce Capital Allocation (%)", 1, 25, 10, step=1)
 
 # Calculate weights
 spy_base = 0.60
@@ -403,40 +403,46 @@ with col_table:
             row["_is_section"] = False
         rows.append(row)
     stats_df = pd.DataFrame(rows)
-
-    # Custom value formatter for stats table
+    print(stats_df)
+    # Custom value formatter for stats table (explicit, robust)
     stats_formatter = JsCode(
         """
     function(params) {
         if (params.value == null || params.value === '') return '';
-        // Format as date string
-        if (params.data.Metric.toLowerCase().includes('start') || params.data.Metric.toLowerCase().includes('end')) {
+        var metric = params.data.Metric;
+        // Date metrics
+        if ([
+            'Start', 'End'
+        ].includes(metric)) {
             return params.value;
         }
-        // Always format avg up/down month as percent
-        let metric = params.data.Metric.toLowerCase();
-        if (metric.includes('avg up month') || metric.includes('avg down month')) {
+        // Percent metrics
+        if ([
+            'Total Return', 'Cagr', 'Mtd', 'Three Month', 'Six Month', 'Ytd',
+            'One Year', 'Three Year', 'Five Year', 'Ten Year',
+            'Best Month', 'Worst Month', 'Best Year', 'Worst Year',
+            'Avg Up Month', 'Avg Down Month', 'Win Year Perc', 'Win 12m Perc',
+            'Max Drawdown', 'Avg Drawdown', 'Drawdown'
+        ].includes(metric)) {
             return (params.value * 100).toFixed(2) + '%';
         }
-        // Don't format as percent if metric contains 'days'
-        if (metric.includes('days')) {
+        // Decimal metrics
+        if ([
+            'Calmar', 'Daily Sharpe', 'Daily Sortino', 'Monthly Sharpe', 'Monthly Sortino',
+            'Yearly Sharpe', 'Yearly Sortino', 'Sharpe', 'Sortino'
+        ].includes(metric)) {
             return params.value.toFixed(2);
         }
-        // Expanded: Format as percent for all return-related stats
-        let pct_keywords = [
-            'return', 'cagr', 'mean', 'best', 'worst', 'ytd', 'mtd', 'since', 'perc', 'annualized', 'inception', 'up month', 'down month'
-        ];
-        for (let i = 0; i < pct_keywords.length; i++) {
-            if (metric.includes(pct_keywords[i])) {
-                return (params.value * 100).toFixed(2) + '%';
-            }
+        // Integer/float metrics
+        if ([
+            'Avg Drawdown Days'
+        ].includes(metric)) {
+            return params.value.toFixed(2);
         }
-        // Format as percent for drawdown, vol
-        if (metric.includes('drawdown') || metric.includes('vol')) {
-            return (params.value * 100).toFixed(2) + '%';
-        }
-        // Format as decimal (Sharpe, Sortino, Calmar, Skew, Kurt)
-        if (metric.includes('sharpe') || metric.includes('sortino') || metric.includes('calmar') || metric.includes('skew') || metric.includes('kurt')) {
+        // Skew/Kurtosis (raw float)
+        if ([
+            'Daily Skew', 'Daily Kurt', 'Monthly Skew', 'Monthly Kurt', 'Yearly Skew', 'Yearly Kurt'
+        ].includes(metric)) {
             return params.value.toFixed(2);
         }
         // Default
